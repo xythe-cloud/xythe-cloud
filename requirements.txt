@@ -1,0 +1,46 @@
+# Xythe Cloud - Python Dependencies
+
+# Web Framework
+fastapi==0.115.0
+uvicorn[standard]==0.30.0
+
+# Database
+sqlalchemy[asyncio]==2.0.35
+asyncpg==0.29.0
+
+# Data Validation
+pydantic==2.9.0
+pydantic-settings==2.5.0
+
+# Redis & Background Tasks
+redis==5.1.1
+celery==5.4.0
+
+# Vector Store
+chromadb==0.5.5
+
+# AI/ML
+openai==1.50.0
+
+# HTTP Client
+httpx==0.27.0
+
+# PDF Generation
+weasyprint==62.3
+
+# Document Processing
+pypdf==4.3.1
+python-docx==1.1.2
+openpyxl==3.1.5
+
+# Image Processing (OCR)
+Pillow==10.4.0
+pytesseract==0.3.10
+
+# Security
+python-jose[cryptography]==3.3.0
+cryptography==43.0.0
+
+# Utilities
+python-multipart==0.0.9
+python-dotenv==1.0.1
