@@ -6,7 +6,7 @@ from sqlalchemy import (
     Column, String, Integer, Float, Text, DateTime, Date, ForeignKey, JSON
 )
 from sqlalchemy.sql import func
-from src.database.database import Base
+from src.database.connection import Base
 
 
 class Interaction(Base):

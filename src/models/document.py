@@ -7,7 +7,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
-from src.database.database import Base
+from src.database.connection import Base
 
 
 class Document(Base):

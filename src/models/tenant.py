@@ -5,7 +5,7 @@ All data is isolated by tenant_id.
 """
 from sqlalchemy import Column, String, Boolean, DateTime, Integer, JSON
 from sqlalchemy.sql import func
-from src.database.database import Base
+from src.database.connection import Base
 import uuid
 
 
