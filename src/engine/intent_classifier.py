@@ -64,8 +64,9 @@ class IntentClassifier:
             intent = result.get("intent", "general_faq")
             confidence = float(result.get("confidence", 0.5))
             entities = result.get("entities", {})
+            language = result.get("language", "en")
 
-            logger.info(f"Intent: {intent} (confidence: {confidence})")
+            logger.info(f"Intent: {intent} (confidence: {confidence}, language: {language})")
             return intent, confidence, entities
 
         except json.JSONDecodeError as e:
@@ -81,6 +82,10 @@ class IntentClassifier:
         if mode == "agent":
             context = """
 You are classifying messages for an insurance/property/car agent's AI assistant.
+Customers may use informal Bahasa Melayu mixed with English (Malaysian WhatsApp style).
+Understand slang like: "plan medical best utk family", "brp harga sebulan", "nak quote boleh", "ada cover hospital gov ke", "yg ni cover apa".
+Understand short forms: yg (yang), utk (untuk), nak (hendak), tak/takde (tidak), dah (sudah), pun, je (sahaja), ke (kah).
+Understand code-switching between BM and English.
 
 INTENTS:
 - product_inquiry: Asking about coverage, features, benefits of a policy/property/car
@@ -94,6 +99,9 @@ INTENTS:
         elif mode == "shop":
             context = """
 You are classifying messages for a retail shop's AI assistant.
+Customers may use informal Bahasa Melayu mixed with English (Malaysian WhatsApp style).
+Understand slang like: "ada stock ke", "brp harga", "nak beli", "boleh order tak".
+Understand short forms: yg (yang), utk (untuk), nak (hendak), tak/takde (tidak), dah (sudah).
 
 INTENTS:
 - stock_check: Asking if something is available or in stock
@@ -106,6 +114,9 @@ INTENTS:
         else:
             context = """
 You are classifying messages for a service provider's AI assistant.
+Customers may use informal Bahasa Melayu mixed with English (Malaysian WhatsApp style).
+Understand slang like: "ada slot tak", "brp harga", "nak booking", "available ke".
+Understand short forms: yg (yang), utk (untuk), nak (hendak), tak/takde (tidak), dah (sudah).
 
 INTENTS:
 - availability_check: Asking about available dates or slots
@@ -124,6 +135,7 @@ Return ONLY a JSON object (no markdown, no explanation):
 {{
     "intent": "one of the intents above",
     "confidence": 0.0-1.0,
+    "language": "en" or "bm",
     "entities": {{
         "product_name": "extracted product/policy/property name or null",
         "quantity": number or null,
