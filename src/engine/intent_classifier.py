@@ -36,6 +36,7 @@ class IntentClassifier:
             intent: The classified intent
             confidence: How confident the LLM is (0.0 - 1.0)
             entities: Extracted information (product names, quantities, etc.)
+            The entities dict includes "language": "en" or "bm"
         """
         
         prompt = self._build_prompt(message, mode)
@@ -64,7 +65,16 @@ class IntentClassifier:
             intent = result.get("intent", "general_faq")
             confidence = float(result.get("confidence", 0.5))
             entities = result.get("entities", {})
-            language = result.get("language", "en")
+            
+            # ============================================
+            # ADDED: Extract language and store in entities
+            # ============================================
+            if "language" in result:
+                entities["language"] = result["language"]
+            else:
+                entities["language"] = "en"  # Default to English
+            
+            language = entities.get("language", "en")
 
             logger.info(f"Intent: {intent} (confidence: {confidence}, language: {language})")
             return intent, confidence, entities
