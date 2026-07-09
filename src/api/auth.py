@@ -1,155 +1,143 @@
 """
-Authentication API — email/password with JWT tokens.
+Authentication API — WhatsApp OTP Login
 """
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, EmailStr
-from typing import Optional
-from datetime import datetime, timedelta
-import hashlib
+from pydantic import BaseModel
 import secrets
 import json
 import os
+from datetime import datetime, timedelta
+from src.services.whatsapp_client import WhatsAppClient
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+whatsapp = WhatsAppClient()
 
-# Simple file-based user store (replace with database later)
 USERS_FILE = "./data/users.json"
+CODES_FILE = "./data/otp_codes.json"
 os.makedirs("./data", exist_ok=True)
 
-# Secret key for JWT (in production, use a proper secret)
-JWT_SECRET = os.getenv("JWT_SECRET", "xythe_jwt_secret_2026")
+# The Xythe WhatsApp number that sends OTP codes
+XYTHE_PHONE_ID = os.getenv("WHATSAPP_PHONE_ID", "1156002210935879")
 
 
-def load_users():
+def load_json(path):
     try:
-        with open(USERS_FILE, "r") as f:
+        with open(path, "r") as f:
             return json.load(f)
     except:
         return {}
 
 
-def save_users(users):
-    with open(USERS_FILE, "w") as f:
-        json.dump(users, f, indent=2)
+def save_json(path, data):
+    with open(path, "w") as f:
+        json.dump(data, f, indent=2)
 
 
-def hash_password(password: str) -> str:
-    salt = secrets.token_hex(16)
-    return salt + ":" + hashlib.sha256((password + salt).encode()).hexdigest()
+def create_token(phone: str) -> str:
+    return secrets.token_hex(32)
 
 
-def check_password(password: str, hashed: str) -> bool:
-    salt, hash_val = hashed.split(":")
-    return hashlib.sha256((password + salt).encode()).hexdigest() == hash_val
+class SendCodeRequest(BaseModel):
+    phone: str
 
 
-def create_token(email: str) -> str:
-    expiry = datetime.utcnow() + timedelta(days=30)
-    payload = f"{email}:{expiry.isoformat()}:{JWT_SECRET}"
-    token = hashlib.sha256(payload.encode()).hexdigest()
-    return f"{token}:{expiry.isoformat()}"
+class VerifyCodeRequest(BaseModel):
+    phone: str
+    code: str
 
 
-def verify_token(token: str) -> Optional[str]:
+@router.post("/send-code")
+async def send_code(data: SendCodeRequest):
+    """Send a 6-digit OTP via WhatsApp."""
+    phone = data.phone.strip()
+
+    # Generate 6-digit code
+    code = str(secrets.randbelow(900000) + 100000)
+
+    # Store code (valid for 5 minutes)
+    codes = load_json(CODES_FILE)
+    codes[phone] = {
+        "code": code,
+        "expires": (datetime.utcnow() + timedelta(minutes=5)).isoformat()
+    }
+    save_json(CODES_FILE, codes)
+
+    # Send OTP via WhatsApp
     try:
-        hash_part, expiry_str = token.split(":")
-        expiry = datetime.fromisoformat(expiry_str)
-        if datetime.utcnow() > expiry:
-            return None
-        users = load_users()
-        for email, user in users.items():
-            expected = create_token(email)
-            expected_hash = expected.split(":")[0]
-            if hash_part == expected_hash:
-                return email
-        return None
-    except:
-        return None
+        await whatsapp.send_text(
+            phone_number_id=XYTHE_PHONE_ID,
+            to=phone,
+            text=f"🔐 Your Xythe verification code is: *{code}*\n\nThis code expires in 5 minutes. Do not share it with anyone."
+        )
+        return {"status": "ok", "message": "Verification code sent"}
+    except Exception as e:
+        return {"status": "ok", "message": "Code generated. WhatsApp send pending: " + str(e)}
 
 
-# Models
-class SignupRequest(BaseModel):
-    email: str
-    password: str
-    name: Optional[str] = ""
+@router.post("/verify")
+async def verify_code(data: VerifyCodeRequest):
+    """Verify OTP and login/signup."""
+    phone = data.phone.strip()
+    code = data.code.strip()
 
+    # Check code
+    codes = load_json(CODES_FILE)
+    stored = codes.get(phone)
 
-class LoginRequest(BaseModel):
-    email: str
-    password: str
+    if not stored:
+        raise HTTPException(400, "No code sent to this number")
 
+    if datetime.fromisoformat(stored["expires"]) < datetime.utcnow():
+        del codes[phone]
+        save_json(CODES_FILE, codes)
+        raise HTTPException(400, "Code expired. Please request a new one.")
 
-class TokenResponse(BaseModel):
-    token: str
-    email: str
-    name: str
-    tenant_id: str
+    if stored["code"] != code:
+        raise HTTPException(400, "Incorrect code")
 
+    # Code is valid — delete it
+    del codes[phone]
+    save_json(CODES_FILE, codes)
 
-@router.post("/signup")
-async def signup(data: SignupRequest):
-    users = load_users()
+    # Create user if new
+    users = load_json(USERS_FILE)
+    if phone not in users:
+        users[phone] = {
+            "phone": phone,
+            "tenant_id": f"t_{secrets.token_hex(4)}",
+            "created_at": datetime.utcnow().isoformat()
+        }
+        save_json(USERS_FILE, users)
 
-    if data.email in users:
-        raise HTTPException(400, "Email already registered")
+    user = users[phone]
+    token = create_token(phone)
 
-    tenant_id = f"t_{secrets.token_hex(4)}"
-
-    users[data.email] = {
-        "email": data.email,
-        "password": hash_password(data.password),
-        "name": data.name or data.email.split("@")[0],
-        "tenant_id": tenant_id,
+    # Store token
+    tokens = load_json("./data/tokens.json")
+    tokens[token] = {
+        "phone": phone,
+        "tenant_id": user["tenant_id"],
         "created_at": datetime.utcnow().isoformat()
     }
+    save_json("./data/tokens.json", tokens)
 
-    save_users(users)
-
-    token = create_token(data.email)
-
-    return TokenResponse(
-        token=token,
-        email=data.email,
-        name=users[data.email]["name"],
-        tenant_id=tenant_id
-    )
-
-
-@router.post("/login")
-async def login(data: LoginRequest):
-    users = load_users()
-
-    if data.email not in users:
-        raise HTTPException(400, "Email not registered")
-
-    user = users[data.email]
-
-    if not check_password(data.password, user["password"]):
-        raise HTTPException(400, "Incorrect password")
-
-    token = create_token(data.email)
-
-    return TokenResponse(
-        token=token,
-        email=data.email,
-        name=user["name"],
-        tenant_id=user["tenant_id"]
-    )
+    return {
+        "token": token,
+        "phone": phone,
+        "tenant_id": user["tenant_id"],
+        "is_new": True
+    }
 
 
 @router.get("/me")
 async def me(token: str = ""):
-    email = verify_token(token)
-    if not email:
-        raise HTTPException(401, "Invalid or expired token")
-
-    users = load_users()
-    user = users.get(email)
-    if not user:
-        raise HTTPException(404, "User not found")
+    """Get current user info from token."""
+    tokens = load_json("./data/tokens.json")
+    data = tokens.get(token)
+    if not data:
+        raise HTTPException(401, "Invalid token")
 
     return {
-        "email": user["email"],
-        "name": user["name"],
-        "tenant_id": user["tenant_id"]
+        "phone": data["phone"],
+        "tenant_id": data["tenant_id"]
     }
