@@ -9,6 +9,7 @@ from src.config import settings
 from src.database.connection import init_db, check_db_connection
 from src.api.auth import router as auth_router
 from src.api.upload import router as upload_router
+from src.api.payments import router as payments_router
 from src.api.webhooks import router as webhooks_router
 from src.api.workspace import router as workspace_router
 from src.utils.logging import logger
@@ -58,6 +59,7 @@ app.include_router(webhooks_router)
 app.include_router(workspace_router)
 app.include_router(upload_router)
 app.include_router(auth_router)
+app.include_router(payments_router)
 
 
 # Health check endpoint
