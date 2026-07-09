@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from src.config import settings
 from src.database.connection import init_db, check_db_connection
+from src.api.upload import router as upload_router
 from src.api.webhooks import router as webhooks_router
 from src.api.workspace import router as workspace_router
 from src.utils.logging import logger
@@ -54,6 +55,7 @@ app.add_middleware(
 # Include routers
 app.include_router(webhooks_router)
 app.include_router(workspace_router)
+app.include_router(upload_router)
 
 
 # Health check endpoint
